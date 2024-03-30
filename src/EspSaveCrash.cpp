@@ -73,6 +73,20 @@ extern "C" void custom_crash_callback(struct rst_info * rst_info, uint32_t stack
   // now address EEPROM contents including _offset
   writeFrom += EspSaveCrash::_offset;
 
+  if (rst_info->reason == REASON_EXCEPTION_RST) {
+      // The GCC divide routine in ROM jumps to the address below and executes ILL (00 00 00) on div-by-zero
+      // In that case, print the exception as (6) which is IntegerDivZero
+      uint32_t epc1 = rst_info->epc1;
+      bool div_zero = (rst_info->exccause == 0) && (epc1 == 0x4000dce5u);
+      if (div_zero) {
+          rst_info->exccause = 6;
+          // In place of the detached 'ILL' instruction., redirect attention
+          // back to the code that called the ROM divide function.
+          __asm__ __volatile__("rsr.excsave1 %0\n\t" : "=r"(epc1) :: "memory");
+      }
+      rst_info->epc1 = epc1;
+  }
+
   // write crash time to EEPROM
   uint32_t crashTime = millis();
   EEPROM.put(writeFrom + SAVE_CRASH_CRASH_TIME, crashTime);
@@ -168,7 +182,7 @@ void EspSaveCrash::print(Print& outputDev)
     outputDev.printf("Crash # %d at %ld ms\n", k + 1, (long) crashTime);
 
     outputDev.printf("Restart reason: %d\n", EEPROM.read(readFrom + SAVE_CRASH_RESTART_REASON));
-    outputDev.printf("Exception cause: %d\n", EEPROM.read(readFrom + SAVE_CRASH_EXCEPTION_CAUSE));
+    outputDev.printf("Exception (%d):\n", EEPROM.read(readFrom + SAVE_CRASH_EXCEPTION_CAUSE));
 
     uint32_t epc1, epc2, epc3, excvaddr, depc;
     EEPROM.get(readFrom + SAVE_CRASH_EPC1, epc1);
@@ -185,6 +199,12 @@ void EspSaveCrash::print(Print& outputDev)
     int16_t currentAddress = readFrom + SAVE_CRASH_STACK_TRACE;
     int16_t stackLength = stackEnd - stackStart;
     uint32_t stackTrace;
+    if (stackEnd == 0x3fffffb0)
+        outputDev.println("\nctx: sys\n");
+    else
+        outputDev.println("\nctx: cont\n");
+    outputDev.printf("sp: %08x end: %08x\n", stackStart, stackEnd);
+
     for (int16_t i = 0; i < stackLength; i += 0x10)
     {
       outputDev.printf("%08x: ", stackStart + i);
@@ -221,7 +241,7 @@ void EspSaveCrash::print(Print& outputDev)
   }
   else
   {
-    outputDev.printf("EEPROM space available: 0x%04x bytes\n", _size - writeFrom);
+    outputDev.printf("\nEEPROM space available: 0x%04x bytes\n", _size - writeFrom);
   }
 }
 
