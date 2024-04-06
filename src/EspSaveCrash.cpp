@@ -38,6 +38,7 @@
 uint16_t EspSaveCrash::_offset = 0x0010;
 uint16_t EspSaveCrash::_size = 0x0200;
 bool EspSaveCrash::_persistEEPROM = false;
+void (*EspSaveCrash::_callback)() = NULL;
 
 /**
  * Save crash information in EEPROM
@@ -123,17 +124,22 @@ extern "C" void custom_crash_callback(struct rst_info * rst_info, uint32_t stack
   EEPROM.put(EspSaveCrash::_offset + SAVE_CRASH_WRITE_FROM, currentAddress);
 
   EEPROM.commit();
+
+  // If callback function provided, call it now
+  if (EspSaveCrash::_callback)
+    EspSaveCrash::_callback();
 }
 
 
 /**
  * The class constructor
  */
-EspSaveCrash::EspSaveCrash(uint16_t off, uint16_t size, bool persistEEPROM)
+EspSaveCrash::EspSaveCrash(uint16_t off, uint16_t size, bool persistEEPROM, void (*callback)())
 {
   _offset = off;
   _size = size;
   _persistEEPROM = persistEEPROM;
+  _callback = callback;
 }
 
 /**
