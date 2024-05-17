@@ -27,6 +27,10 @@
 */
 
 #include "EspSaveCrash.h"
+#if defined(MMU_IRAM_HEAP)
+#include <umm_malloc/umm_malloc.h>
+#include <umm_malloc/umm_heap_select.h>
+#endif
 
 /**
  * EEPROM layout
@@ -49,7 +53,12 @@ extern "C" void custom_crash_callback(struct rst_info * rst_info, uint32_t stack
 {
   // Note that 'EEPROM.begin' method is reserving a RAM buffer
   // The buffer size is SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_SPACE_SIZE
-  EEPROM.begin(EspSaveCrash::_offset + EspSaveCrash::_size);
+  {
+#if defined(MMU_IRAM_HEAP)
+    HeapSelectIram ephemeral;
+#endif
+    EEPROM.begin(EspSaveCrash::_offset + EspSaveCrash::_size);
+  }
 
   byte crashCounter = EEPROM.read(EspSaveCrash::_offset + SAVE_CRASH_COUNTER);
   int16_t writeFrom;
@@ -151,7 +160,12 @@ void EspSaveCrash::clear(void)
 {
   // Note that 'EEPROM.begin' method is reserving a RAM buffer
   // The buffer size is SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_SPACE_SIZE
-  EEPROM.begin(_offset + _size);
+  {
+#if defined(MMU_IRAM_HEAP)
+    HeapSelectIram ephemeral;
+#endif
+    EEPROM.begin(_offset + _size);
+  }
   // clear the crash counter
   EEPROM.write(_offset + SAVE_CRASH_COUNTER, 0);
   if(!_persistEEPROM){
@@ -171,7 +185,12 @@ void EspSaveCrash::print(Print& outputDev)
 {
   // Note that 'EEPROM.begin' method is reserving a RAM buffer
   // The buffer size is SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_SPACE_SIZE
-  EEPROM.begin(_offset + _size);
+  {
+#if defined(MMU_IRAM_HEAP)
+    HeapSelectIram ephemeral;
+#endif
+    EEPROM.begin(_offset + _size);
+  }
   byte crashCounter = EEPROM.read(_offset + SAVE_CRASH_COUNTER);
   if (crashCounter == 0)
   {
@@ -298,7 +317,12 @@ void EspSaveCrash::crashToBuffer(char* userBuffer)
  */
 int EspSaveCrash::count()
 {
-  EEPROM.begin(_offset + _size);
+  {
+#if defined(MMU_IRAM_HEAP)
+    HeapSelectIram ephemeral;
+#endif
+    EEPROM.begin(_offset + _size);
+  }
   int crashCounter = EEPROM.read(_offset + SAVE_CRASH_COUNTER);
   if(!_persistEEPROM){
     EEPROM.end();
